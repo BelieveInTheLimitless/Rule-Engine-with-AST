@@ -156,3 +156,13 @@ def evaluate_rule(rule_ast, data):
             return left_result or right_result
             
     return False
+
+def format_ast(node, level=0):
+    indent = "  " * level
+    if hasattr(node, 'operator'):
+        result = f"{indent}{node.operator}\n"
+        for child in node.children:
+            result += format_ast(child, level + 1)
+        return result
+    else:
+        return f"{indent}{str(node)}\n"
