@@ -13,7 +13,7 @@ A simple 3-tier rule engine application(Simple UI, API and Backend, Data) to det
 - evaluate_rule(JSON data): This function takes a JSON representing the combined rule's AST and a dictionary data containing attributes (e.g., data = {"age": 35, "department": "Sales", "salary": 60000, "experience": 3}).
   
 ## Technologies Used
-- Python3 (Prerequisite)
+- Python3
 - HTML-CSS
 - Flask
 - Flask-SQLAlchemy
