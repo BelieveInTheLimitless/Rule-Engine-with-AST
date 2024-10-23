@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rule Engine Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .tab {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+        .tab.active {
+            display: block;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            border: 1px solid #007bff;
+            background: #ffffff;
+            color: #007bff;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .tab-button:hover {
+            background: #e6f0ff;
+        }
+        .tab-button.active {
+            background: #007bff;
+            color: white;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+        }
+        .rule-container {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+        }
+        .ast-display {
+            font-family: monospace;
+            white-space: pre;
+            background: #f5f5f5;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            overflow-x: auto;
+        }
+        button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .remove-rule-btn {
+            background: #dc3545;
+        }
+        .remove-rule-btn:hover {
+            background: #c82333;
+        }
+        .add-rule-btn {
+            background: #28a745;
+        }
+        .add-rule-btn:hover {
+            background: #218838;
+        }
+        .rule-input {
+            width: calc(100% - 100px);
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="tabs">
+        <button class="tab-button active" onclick="showTab('createRule')">Create Rule</button>
+        <button class="tab-button" onclick="showTab('combineRules')">Combine Rules</button>
+        <button class="tab-button" onclick="showTab('evaluateRule')">Evaluate Rule</button>
+    </div>
+
+    <div id="createRule" class="tab active">
+        <h2>Create New Rule</h2>
+        <div class="form-group">
+            <label for="ruleName">Rule Name:</label>
+            <input type="text" id="ruleName" required>
+        </div>
+        <div class="form-group">
+            <label for="ruleString">Rule Definition:</label>
+            <textarea id="ruleString" rows="4" required placeholder="Example: age > 30 AND department = 'Sales'"></textarea>
+        </div>
+        <button onclick="createRule()">Create Rule</button>
+        <div id="createRuleResult" class="result-container" style="display: none;"></div>
+    </div>
+
+    <div id="combineRules" class="tab">
+        <h2>Combine Rules</h2>
+        <div class="form-group">
+            <label for="combinedRuleName">Combined Rule Name:</label>
+            <input type="text" id="combinedRuleName" required>
+        </div>
+        <div class="form-group">
+            <label for="operator">Combine Operator:</label>
+            <select id="operator">
+                <option value="AND">AND</option>
+                <option value="OR">OR</option>
+            </select>
+        </div>
+        <div id="rulesContainer">
+            <div class="rule-container">
+                <textarea class="rule-input" rows="2" placeholder="Enter rule definition (e.g., age > 30 AND department = 'Sales')"></textarea>
+                <button class="remove-rule-btn" onclick="removeRule(this)">Remove</button>
+            </div>
+            <div class="rule-container">
+                <textarea class="rule-input" rows="2" placeholder="Enter rule definition (e.g., salary > 50000 OR experience > 5)"></textarea>
+                <button class="remove-rule-btn" onclick="removeRule(this)">Remove</button>
+            </div>
+        </div>
+        <button class="add-rule-btn" onclick="addRuleInput()">Add Another Rule</button>
+        <button onclick="combineRules()">Combine Rules</button>
+        <div id="combineRulesResult" class="result-container" style="display: none;"></div>
+    </div>
+
+    <div id="evaluateRule" class="tab">
+        <h2>Evaluate Rule</h2>
+        <div class="form-group">
+            <label for="evaluateRuleName">Rule Name:</label>
+            <select id="evaluateRuleName"></select>
+        </div>
+        <div class="form-group">
+            <label for="jsonData">JSON Data:</label>
+            <textarea id="jsonData" rows="4" required placeholder='Example: {"age": 35, "department": "Sales", "salary": 60000}'></textarea>
+        </div>
+        <button onclick="evaluateRule()">Evaluate Rule</button>
+        <div id="evaluateRuleResult" class="result-container" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Global state to store available rules
+        let availableRules = [];
+
+        // Fetch rules on page load
+        window.onload = function() {
+            fetchRules();
+        };
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
+        }
+
+        async function fetchRules() {
+            try {
+                const response = await fetch('/get_rules');
+                const data = await response.json();
+                if (data.success) {
+                    availableRules = data.rules;
+                    updateRuleSelects();
+                }
+            } catch (error) {
+                console.error('Error fetching rules:', error);
+            }
+        }
+
+        function updateRuleSelects() {
+            // Update evaluate rule select
+            const evaluateSelect = document.getElementById('evaluateRuleName');
+            evaluateSelect.innerHTML = '';
+            availableRules.forEach(rule => {
+                const option = document.createElement('option');
+                option.value = rule.name;
+                option.textContent = rule.name;
+                evaluateSelect.appendChild(option);
+            });
+        }
+
+        async function createRule() {
+            const name = document.getElementById('ruleName').value;
+            const ruleString = document.getElementById('ruleString').value;
+            const resultContainer = document.getElementById('createRuleResult');
+
+            try {
+                const response = await fetch('/create_rule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, rule_string: ruleString })
+                });
+
+                const data = await response.json();
+                resultContainer.style.display = 'block';
+                
+                if (data.success) {
+                    let resultHTML = `<h3>Rule created successfully!</h3>
+                                    <p>Name: ${data.rule.name}</p>
+                                    <p>Rule: ${data.rule.rule_string}</p>`;
+                    
+                    if (data.ast) {
+                        resultHTML += `<h4>AST Representation:</h4>
+                                     <div class="ast-display">${data.ast}</div>`;
+                    }
+                    
+                    resultContainer.innerHTML = resultHTML;
+                    await fetchRules(); // Refresh available rules
+                } else {
+                    resultContainer.innerHTML = `<h3>Error:</h3><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                resultContainer.innerHTML = `<h3>Error:</h3><p>${error.message}</p>`;
+                resultContainer.style.display = 'block';
+            }
+        }
+
+        function addRuleInput() {
+            const container = document.createElement('div');
+            container.className = 'rule-container';
+            container.innerHTML = `
+                <textarea class="rule-input" rows="2" placeholder="Enter rule definition (e.g., age > 30 AND department = 'Sales')"></textarea>
+                <button class="remove-rule-btn" onclick="removeRule(this)">Remove</button>
+            `;
+            document.getElementById('rulesContainer').appendChild(container);
+        }
+
+        function removeRule(button) {
+            const containers = document.querySelectorAll('.rule-container');
+            if (containers.length > 2) {
+                button.parentElement.remove();
+            }
+        }
+
+        async function combineRules() {
+            const combinedRuleName = document.getElementById('combinedRuleName').value;
+            const operator = document.getElementById('operator').value;
+            const ruleInputs = document.querySelectorAll('.rule-input');
+            const rules = Array.from(ruleInputs).map(input => input.value.trim()).filter(rule => rule !== '');
+            const resultContainer = document.getElementById('combineRulesResult');
+
+            if (rules.length < 2) {
+                resultContainer.innerHTML = '<h3>Error:</h3><p>At least two valid rules are required</p>';
+                resultContainer.style.display = 'block';
+                return;
+            }
+
+            try {
+                // Create combined rule string
+                const combinedString = `(${rules.join(`) ${operator} (`)})`;
+                
+                const response = await fetch('/create_rule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: combinedRuleName,
+                        rule_string: combinedString
+                    })
+                });
+
+                const data = await response.json();
+                resultContainer.style.display = 'block';
+
+                if (data.success) {
+                    let resultHTML = `<h3>Rules combined successfully!</h3>
+                                    <p>Name: ${data.rule.name}</p>
+                                    <p>Combined Rule: ${data.rule.rule_string}</p>`;
+                    
+                    if (data.ast) {
+                        resultHTML += `<h4>AST Representation:</h4>
+                                     <div class="ast-display">${data.ast}</div>`;
+                    }
+                    
+                    resultContainer.innerHTML = resultHTML;
+                    await fetchRules(); // Refresh available rules
+                } else {
+                    resultContainer.innerHTML = `<h3>Error:</h3><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                resultContainer.innerHTML = `<h3>Error:</h3><p>${error.message}</p>`;
+                resultContainer.style.display = 'block';
+            }
+        }
+
+        async function evaluateRule() {
+            const ruleName = document.getElementById('evaluateRuleName').value;
+            const jsonData = document.getElementById('jsonData').value;
+            const resultContainer = document.getElementById('evaluateRuleResult');
+
+            try {
+                const response = await fetch('/evaluate_rule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        rule_name: ruleName,
+                        data: JSON.parse(jsonData)
+                    })
+                });
+
+                const data = await response.json();
+                resultContainer.style.display = 'block';
+
+                if (data.success) {
+                    let resultHTML = `<h3>Rule Evaluation Result:</h3>
+                                    <p>Rule: ${data.rule_string}</p>
+                                    <p>Result: ${data.result}</p>`;
+                    
+                    if (data.ast) {
+                        resultHTML += `<h4>AST Representation:</h4>
+                                     <div class="ast-display">${data.ast}</div>`;
+                    }
+                    
+                    resultContainer.innerHTML = resultHTML;
+                } else {
+                    resultContainer.innerHTML = `<h3>Error:</h3><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                resultContainer.innerHTML = `<h3>Error:</h3><p>${error.message}</p>`;
+                resultContainer.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
