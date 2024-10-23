@@ -48,7 +48,6 @@ def tokenize(rule_string):
     
     return [t for t in tokens if t]
 
-
 def parse_expression(tokens, pos=0):
     stack = []
     operators = []
@@ -100,8 +99,6 @@ def parse_expression(tokens, pos=0):
     
     return stack[0] if stack else None, pos + 1
 
-
-
 def create_rule(rule_string):    
     try:
         rule_string = ' '.join(rule_string.split())
@@ -124,52 +121,6 @@ def evaluate_rule(rule_ast, data):
             
             if value.startswith(("'", '"')) and value.endswith(("'", '"')):
                 value = value[1:-1] 
-            elif value.replace('.', '').isdigit():
-                value = float(value)
-            
-            if field not in data:
-                return False
-                
-            actual_value = data[field]
-            
-            if isinstance(value, (int, float)):
-                try:
-                    actual_value = float(actual_value)
-                except (ValueError, TypeError):
-                    return False
-            
-            if op == '>': return actual_value > value
-            if op == '<': return actual_value < value
-            if op == '>=': return actual_value >= value
-            if op == '<=': return actual_value <= value
-            if op == '=': return actual_value == value
-            if op == '!=': return actual_value != value
-            
-        except (ValueError, KeyError) as e:
-            print(f"Error evaluating condition: {str(e)}")
-            return False
-    
-    if rule_ast.type == "operator":
-        left_result = evaluate_rule(rule_ast.left, data)
-        right_result = evaluate_rule(rule_ast.right, data)
-        
-        if rule_ast.value == "AND":
-            return left_result and right_result
-        elif rule_ast.value == "OR":
-            return left_result or right_result
-            
-    return False
-    
-def evaluate_rule(rule_ast, data):
-    if not rule_ast:
-        return False
-    
-    if rule_ast.type == "operand":
-        try:
-            field, op, value = rule_ast.value.split()
-            
-            if value.startswith(("'", '"')) and value.endswith(("'", '"')):
-                value = value[1:-1]
             elif value.replace('.', '').isdigit():
                 value = float(value)
             
