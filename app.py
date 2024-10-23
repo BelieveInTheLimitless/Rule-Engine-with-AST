@@ -1,7 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from models import db, Rule
 from config import Config
-from rule_engine import create_rule, evaluate_rule
+from rule_engine import create_rule, evaluate_rule, format_ast
 from sqlalchemy.exc import OperationalError
 import time
 
@@ -27,6 +27,24 @@ def init_db():
 
 init_db()
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/get_rules', methods=['GET'])
+def get_rules():
+    try:
+        rules = Rule.query.all()
+        return jsonify({
+            'success': True,
+            'rules': [rule.to_dict() for rule in rules]
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/create_rule', methods=['POST'])
 def create_rule_endpoint():
     try:
@@ -46,18 +64,11 @@ def create_rule_endpoint():
                 'error': 'Name and rule_string cannot be empty'
             }), 400
 
-        existing_rule_name = Rule.query.filter_by(name=name).first()
-        if existing_rule_name:
+        existing_rule = Rule.query.filter_by(name=name).first()
+        if existing_rule:
             return jsonify({
                 'success': False,
                 'error': f'Rule with name "{name}" already exists'
-            }), 409 
-
-        existing_rule_string = Rule.query.filter_by(rule_string=rule_string).first()
-        if existing_rule_string:
-            return jsonify({
-                'success': False,
-                'error': f'This rule definition already exists under the name "{existing_rule_string.name}"'
             }), 409
 
         rule_ast = create_rule(rule_string)
@@ -66,6 +77,8 @@ def create_rule_endpoint():
                 'success': False,
                 'error': 'Invalid rule format'
             }), 400
+
+        formatted_ast = format_ast(rule_ast)
 
         new_rule = Rule(
             name=name,
@@ -78,7 +91,8 @@ def create_rule_endpoint():
         return jsonify({
             'success': True,
             'message': 'Rule created successfully',
-            'rule': new_rule.to_dict()
+            'rule': new_rule.to_dict(),
+            'ast': formatted_ast
         })
 
     except Exception as e:
@@ -87,7 +101,6 @@ def create_rule_endpoint():
             'success': False,
             'error': str(e)
         }), 500
-
 
 @app.route('/combine_rules', methods=['POST'])
 def combine_rules_endpoint():
@@ -110,33 +123,25 @@ def combine_rules_endpoint():
             }), 400
 
         rule_strings = []
-        for rule in rules:
-            if 'rule_string' not in rule:
+        for rule_name in rules:
+            rule = Rule.query.filter_by(name=rule_name).first()
+            if not rule:
                 return jsonify({
                     "success": False,
-                    "error": "Each rule must contain a rule_string"
-                }), 400
+                    "error": f"Rule not found: {rule_name}"
+                }), 404
+            rule_strings.append(f"({rule.rule_string})")
 
-            rule_string = rule['rule_string'].strip()
-            
-            if create_rule(rule_string) is None:
-                return jsonify({
-                    "success": False,
-                    "error": f"Invalid rule format: {rule_string}"
-                }), 400
-                
-            rule_strings.append(f"({rule_string})") 
-
-        combined_string = rule_strings[0]
-        for rule_string in rule_strings[1:]:
-            combined_string = f"{combined_string} {operator} {rule_string}"
-
+        combined_string = f" {operator} ".join(rule_strings)
         combined_ast = create_rule(combined_string)
+        
         if combined_ast is None:
             return jsonify({
                 "success": False,
                 "error": "Failed to create valid combined rule"
             }), 400
+
+        formatted_ast = format_ast(combined_ast)
 
         new_rule = Rule(
             name=combined_rule_name,
@@ -150,11 +155,7 @@ def combine_rules_endpoint():
             "success": True,
             "message": "Combined rule created successfully",
             "rule": new_rule.to_dict(),
-            "combined_ast": str(combined_ast),
-            "debug_info": {
-                "individual_rules": rule_strings,
-                "combined_string": combined_string
-            }
+            "ast": formatted_ast
         })
 
     except Exception as e:
@@ -164,37 +165,48 @@ def combine_rules_endpoint():
             "error": str(e)
         }), 500
 
-
 @app.route('/evaluate_rule', methods=['POST'])
 def evaluate_rule_endpoint():
     try:
         data = request.json
-        if 'rule_name' not in data or 'data' not in data:
-            return jsonify({"error": "Both rule_name and data are required"}), 400
+        if not data or 'rule_name' not in data or 'data' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Both rule_name and data are required'
+            }), 400
             
         rule_name = data['rule_name']
         eval_data = data['data']
         
         rule = Rule.query.filter_by(name=rule_name).first()
         if rule is None:
-            return jsonify({"error": f"No rule found with name: {rule_name}"}), 404
+            return jsonify({
+                'success': False,
+                'error': f'No rule found with name: {rule_name}'
+            }), 404
         
-        rule_string = rule.rule_string
-        
-        rule_ast = create_rule(rule_string)
+        rule_ast = create_rule(rule.rule_string)
         if rule_ast is None:
-            return jsonify({"error": "Invalid rule format"}), 400
+            return jsonify({
+                'success': False,
+                'error': 'Invalid rule format'
+            }), 400
             
         result = evaluate_rule(rule_ast, eval_data)
+        
         return jsonify({
-            "result": result,
-            "rule_name": rule_name,
-            "rule_string": rule_string,
-            "data": eval_data
+            'success': True,
+            'result': result,
+            'rule_name': rule_name,
+            'rule_string': rule.rule_string,
+            'data': eval_data,
+            'ast': format_ast(rule_ast)
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     with app.app_context():
