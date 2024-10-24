@@ -5,7 +5,7 @@ A simple 3-tier rule engine application(Simple UI, API and Backend, Data) to det
 - [Features](#features)
 - [Technologies Used](#technologies-used)
 - [Setup Instructions](#setup-instructions)
-- [API Endpoints](#api-endpoints)
+- [Screenshots](#screenshots)
 
 ## Features
 - create_rule(rule_string): This function takes a string representing a rule and returns a Node object representing the corresponding AST.
@@ -54,7 +54,7 @@ http://127.0.0.1:5000/
 docker compose down
 ```
 
-## API Endpoints
+## Screenshots
 
 - **Create rule**
   
